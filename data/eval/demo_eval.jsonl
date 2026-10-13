@@ -1,0 +1,24 @@
+{"id": "q01", "question": "Which drugs inhibit KRAS G12C in lung cancer?", "relevant_pmids": ["SYN001"], "answerable": true, "expected_keywords": ["sotorasib", "adagrasib"]}
+{"id": "q02", "question": "Why do colorectal cancers with KRAS G12C respond poorly to KRAS inhibitors alone?", "relevant_pmids": ["SYN002"], "answerable": true, "expected_keywords": ["EGFR", "feedback"]}
+{"id": "q03", "question": "What causes resistance to osimertinib in EGFR-mutant non-small cell lung cancer?", "relevant_pmids": ["SYN004"], "answerable": true, "expected_keywords": ["C797S", "MET"]}
+{"id": "q04", "question": "How does osimertinib compare with first-generation EGFR inhibitors as first-line treatment?", "relevant_pmids": ["SYN003"], "answerable": true, "expected_keywords": ["progression-free survival"]}
+{"id": "q05", "question": "Why does BRAF V600E colorectal cancer not respond to BRAF inhibitor monotherapy?", "relevant_pmids": ["SYN006"], "answerable": true, "expected_keywords": ["EGFR", "feedback"]}
+{"id": "q06", "question": "Is combined BRAF and MEK inhibition better than BRAF inhibitor alone in melanoma?", "relevant_pmids": ["SYN005"], "answerable": true, "expected_keywords": ["MEK", "survival"]}
+{"id": "q07", "question": "How do PARP inhibitors exploit BRCA mutations in cancer cells?", "relevant_pmids": ["SYN007"], "answerable": true, "expected_keywords": ["synthetic lethality", "homologous recombination"]}
+{"id": "q08", "question": "What mechanisms cause resistance to PARP inhibitors?", "relevant_pmids": ["SYN008"], "answerable": true, "expected_keywords": ["reversion", "homologous recombination"]}
+{"id": "q09", "question": "What is HER2-low breast cancer and which drug is active against it?", "relevant_pmids": ["SYN009"], "answerable": true, "expected_keywords": ["trastuzumab deruxtecan", "immunohistochemistry"]}
+{"id": "q10", "question": "Is PD-L1 expression a reliable biomarker for immunotherapy response in lung cancer?", "relevant_pmids": ["SYN011"], "answerable": true, "expected_keywords": ["imperfect", "heterogeneity"]}
+{"id": "q11", "question": "Why are MSI-high tumors sensitive to immune checkpoint inhibitors?", "relevant_pmids": ["SYN012"], "answerable": true, "expected_keywords": ["neoantigens"]}
+{"id": "q12", "question": "What tumor mutational burden threshold was used for tumor-agnostic pembrolizumab approval?", "relevant_pmids": ["SYN013"], "answerable": true, "expected_keywords": ["10 mutations per megabase"]}
+{"id": "q13", "question": "Can MDM2 inhibitors work in TP53-mutant tumors?", "relevant_pmids": ["SYN015"], "answerable": true, "expected_keywords": ["wild-type"]}
+{"id": "q14", "question": "Can circulating tumor DNA predict colon cancer recurrence after surgery?", "relevant_pmids": ["SYN016"], "answerable": true, "expected_keywords": ["recurrence", "residual disease"]}
+{"id": "q15", "question": "How can deep learning on histology slides help molecular testing?", "relevant_pmids": ["SYN019"], "answerable": true, "expected_keywords": ["pre-screening", "validation"]}
+{"id": "q16", "question": "Why do gene expression classifiers fail to generalize across cohorts?", "relevant_pmids": ["SYN020"], "answerable": true, "expected_keywords": ["batch effects"]}
+{"id": "q17", "question": "Which ABL1 mutation causes resistance to imatinib, dasatinib and nilotinib in CML?", "relevant_pmids": ["SYN027"], "answerable": true, "expected_keywords": ["T315I"]}
+{"id": "q18", "question": "How do ESR1 mutations arise in breast cancer and which drugs are active against them?", "relevant_pmids": ["SYN022"], "answerable": true, "expected_keywords": ["elacestrant", "aromatase"]}
+{"id": "q19", "question": "What is the effect of STK11 and KEAP1 co-mutation in lung adenocarcinoma?", "relevant_pmids": ["SYN026"], "answerable": true, "expected_keywords": ["immune checkpoint", "NRF2"]}
+{"id": "q20", "question": "Which drugs target RET and NTRK fusions?", "relevant_pmids": ["SYN024"], "answerable": true, "expected_keywords": ["selpercatinib", "larotrectinib"]}
+{"id": "u01", "question": "What is the recommended daily vitamin D dose for preventing lung cancer?", "relevant_pmids": [], "answerable": false, "expected_keywords": []}
+{"id": "u02", "question": "How does proton beam radiotherapy affect survival in childhood osteosarcoma?", "relevant_pmids": [], "answerable": false, "expected_keywords": []}
+{"id": "u03", "question": "Which football team won the 2022 World Cup?", "relevant_pmids": [], "answerable": false, "expected_keywords": []}
+{"id": "u04", "question": "What diet is best for preventing prostate cancer?", "relevant_pmids": [], "answerable": false, "expected_keywords": []}

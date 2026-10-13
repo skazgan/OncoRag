@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets / local config
+.env
+
+# Local state (indexes and raw downloads are reproducible, never commit them)
+index_store/
+data/raw/
+data/processed/
+*.sqlite
+
+# Evaluation output (the committed README table is copied from here deliberately)
+reports/*
+!reports/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

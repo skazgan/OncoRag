@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written fixture following the PubMed efetch (PubmedArticleSet) schema.
+     Contents are SYNTHETIC; only the structure mirrors real records. -->
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">90000001</PMID>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <JournalIssue CitedMedium="Internet">
+            <PubDate><Year>2023</Year><Month>Mar</Month></PubDate>
+          </JournalIssue>
+          <Title>Journal of Synthetic Oncology</Title>
+        </Journal>
+        <ArticleTitle>Resistance to <i>KRAS</i> G12C inhibition in colorectal cancer.</ArticleTitle>
+        <Abstract>
+          <AbstractText Label="BACKGROUND">KRAS G12C inhibitors show limited activity in colorectal cancer.</AbstractText>
+          <AbstractText Label="METHODS">We profiled 40 tumors using targeted sequencing and measured pERK in cell lines.</AbstractText>
+          <AbstractText Label="RESULTS">Feedback activation of EGFR restored MAPK output (P&lt;0.01); IC<sub>50</sub> shifted 10-fold.</AbstractText>
+          <AbstractText Label="CONCLUSIONS">Combined EGFR blockade is required.</AbstractText>
+        </Abstract>
+        <AuthorList>
+          <Author><LastName>Yilmaz</LastName><ForeName>Ayse</ForeName><Initials>A</Initials></Author>
+          <Author><LastName>Demir</LastName><ForeName>Can</ForeName><Initials>C</Initials></Author>
+          <Author><CollectiveName>Synthetic Consortium</CollectiveName></Author>
+        </AuthorList>
+      </Article>
+      <MeshHeadingList>
+        <MeshHeading><DescriptorName UI="D015179">Colorectal Neoplasms</DescriptorName></MeshHeading>
+        <MeshHeading><DescriptorName UI="D000072">Proto-Oncogene Proteins p21(ras)</DescriptorName></MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">90000001</ArticleId>
+        <ArticleId IdType="doi">10.0000/synthetic.0001</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">90000002</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <PubDate><MedlineDate>2019 Nov-Dec</MedlineDate></PubDate>
+          </JournalIssue>
+          <Title>Synthetic Letters in Genomics</Title>
+        </Journal>
+        <ArticleTitle>An unstructured abstract about TP53 in AML</ArticleTitle>
+        <Abstract>
+          <AbstractText>TP53 mutations predict adverse outcome in acute myeloid leukemia. Complex karyotype is common.</AbstractText>
+        </Abstract>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList><ArticleId IdType="pubmed">90000002</ArticleId></ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">90000003</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print"><PubDate><Year>2020</Year></PubDate></JournalIssue>
+          <Title>Synthetic Letters in Genomics</Title>
+        </Journal>
+        <ArticleTitle>An editorial without an abstract</ArticleTitle>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList><ArticleId IdType="pubmed">90000003</ArticleId></ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
