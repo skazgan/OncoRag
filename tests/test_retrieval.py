@@ -134,3 +134,26 @@ def test_reranker_scores_are_bounded_and_sorted(pipeline):
 
 def test_settings_do_not_leak_env_file(tmp_path):
     assert Settings(_env_file=None).embedding_backend == "hashing"
+
+
+def test_embedding_dimension_prefers_the_new_method_name_without_warning():
+    import warnings
+
+    from oncorag.embeddings import embedding_dimension
+
+    class New:
+        def get_embedding_dimension(self):
+            return 384
+
+        def get_sentence_embedding_dimension(self):
+            warnings.warn("renamed", FutureWarning, stacklevel=2)
+            return -1
+
+    class Old:
+        def get_sentence_embedding_dimension(self):
+            return 768
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any FutureWarning becomes a failure
+        assert embedding_dimension(New()) == 384
+        assert embedding_dimension(Old()) == 768

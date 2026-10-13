@@ -60,6 +60,13 @@ class HashingEmbedder:
         return self._embed_one(text)
 
 
+def embedding_dimension(model: object) -> int:
+    """Output size of a SentenceTransformer. The method was renamed in sentence-transformers 5.x
+    (the old name now emits a FutureWarning on every run), so prefer the new one when present."""
+    fn = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension  # type: ignore[attr-defined]
+    return int(fn())
+
+
 class SentenceTransformerEmbedder:
     # bge models are trained with an instruction prefix on the *query* side only.
     _BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
@@ -73,7 +80,7 @@ class SentenceTransformerEmbedder:
             ) from exc
         self._model = SentenceTransformer(model_name)
         self.name = model_name
-        self.dim = int(self._model.get_sentence_embedding_dimension())
+        self.dim = embedding_dimension(self._model)
         self._batch = batch_size
         self._prefix = self._BGE_QUERY_PREFIX if "bge" in model_name.lower() else ""
 
