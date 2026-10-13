@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -57,6 +58,14 @@ def ingest(
     query: Annotated[str, typer.Option(help="PubMed query (default: cancer genomics / targeted therapy).")] = DEFAULT_QUERY,
     max_results: Annotated[int, typer.Option(help="Maximum PMIDs to fetch.")] = 500,
     min_year: Annotated[int | None, typer.Option(help="Only articles published from this year.")] = None,
+    by_year: Annotated[
+        bool,
+        typer.Option(
+            "--by-year/--newest-first",
+            help="With --min-year: spread results evenly across years (default). "
+            "--newest-first returns only the most recent articles.",
+        ),
+    ] = True,
     from_file: Annotated[Path | None, typer.Option(help="Ingest a JSONL file instead of querying PubMed.")] = None,
     rebuild: Annotated[bool, typer.Option(help="Delete the existing index first.")] = False,
     index_dir: IndexDirOpt = None,
@@ -71,11 +80,20 @@ def ingest(
         try:
             client = PubMedClient(settings.ncbi_email, settings.ncbi_api_key)
             with console.status("Querying PubMed..."):
-                articles = client.search_and_fetch(query, max_results=max_results, min_year=min_year)
+                articles = client.search_and_fetch(
+                    query,
+                    max_results=max_results,
+                    min_year=min_year,
+                    max_year=datetime.now(timezone.utc).year if min_year else None,
+                    by_year=bool(min_year and by_year),
+                )
         except PubMedError as exc:
             console.print(f"[red]PubMed error:[/red] {exc}")
             raise typer.Exit(1) from None
         console.print(f"Fetched {len(articles)} articles with abstracts")
+        per_year = Counter(a.year for a in articles if a.year)
+        if per_year:
+            console.print("By year: " + ", ".join(f"{y}: {n}" for y, n in sorted(per_year.items())))
 
     # Only discard the old index once new data is safely in hand; a failed download must not
     # destroy a working index.
@@ -204,8 +222,10 @@ def eval_generate(
     except RuntimeError as exc:  # missing key / missing extra: show the fix, not a traceback
         raise typer.BadParameter(str(exc)) from exc
     pipeline = RAGPipeline.from_settings(settings)
-    examples = generate_eval_set(list(pipeline.index.chunks.values()), client, n=n)
-    pipeline.close()
+    try:
+        examples = generate_eval_set(list(pipeline.index.chunks.values()), client, n=n)
+    finally:
+        pipeline.close()
     save_eval_set(examples, out)
     console.print(f"[green]Wrote {len(examples)} questions to {out}[/green]")
 

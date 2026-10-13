@@ -142,3 +142,52 @@ def test_llm_style_key_in_the_ncbi_slot_is_rejected_before_any_request(bad):
 def test_empty_api_key_is_treated_as_unset():
     c = PubMedClient(api_key="")
     assert c.api_key is None and "api_key" not in c._params()
+
+
+def test_search_by_year_spreads_quota_across_years_and_dedupes():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        p = request.url.params
+        requests.append(dict(p))
+        year = int(p["mindate"])
+        ids = [f"{year}{i:03d}" for i in range(int(p["retmax"]))]
+        if year == 2021:
+            ids[0] = "2020000"  # a PMID that also matched the previous year's window
+        return httpx.Response(200, json={"esearchresult": {"idlist": ids}})
+
+    pmids = _mock_client(handler).search_by_year("kras", total=100, min_year=2018, max_year=2022)
+    assert [r["mindate"] for r in requests] == ["2018", "2019", "2020", "2021", "2022"]
+    assert all(r["mindate"] == r["maxdate"] for r in requests)  # one calendar year per request
+    assert all(r["retmax"] == "20" for r in requests)  # 100 / 5 years
+    assert all(r["datetype"] == "pdat" and "sort" not in r for r in requests)  # relevance order
+    assert len(pmids) == len(set(pmids)) == 99  # exactly one duplicate removed
+    assert {p[:4] for p in pmids} == {"2018", "2019", "2020", "2021", "2022"}
+
+
+def test_search_by_year_quota_rounds_up_and_result_is_capped():
+    def handler(request: httpx.Request) -> httpx.Response:
+        year = int(request.url.params["mindate"])
+        return httpx.Response(200, json={"esearchresult": {"idlist": [f"{year}{i:03d}" for i in range(int(request.url.params["retmax"]))]}})
+
+    pmids = _mock_client(handler).search_by_year("x", total=10, min_year=2020, max_year=2022)  # 4 per year
+    assert len(pmids) == 10
+
+
+def test_search_by_year_validates_range_and_search_and_fetch_requires_both_years():
+    c = _mock_client(lambda r: httpx.Response(200, json={"esearchresult": {"idlist": []}}))
+    with pytest.raises(ValueError):
+        c.search_by_year("x", total=10, min_year=2022, max_year=2020)
+    with pytest.raises(ValueError, match="both min_year and max_year"):
+        c.search_and_fetch("x", by_year=True, min_year=2020)
+
+
+def test_newest_first_search_still_sorts_by_date_and_honours_max_year():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.url.params)
+        return httpx.Response(200, json={"esearchresult": {"idlist": ["1"]}})
+
+    _mock_client(handler).search("x", max_results=5, min_year=2019, max_year=2021)
+    assert seen["sort"] == "pub_date" and seen["mindate"] == "2019" and seen["maxdate"] == "2021"

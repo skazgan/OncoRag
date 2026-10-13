@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     llm_backend: Literal["extractive", "anthropic"] = "extractive"
     llm_model: str = "claude-sonnet-5-5"
     llm_max_tokens: int = 700
-    llm_temperature: float | None = 0.0  # set to null/empty to omit the parameter
+    # Omitted by default: some current models/SDK versions reject `temperature` outright.
+    # Set ONCORAG_LLM_TEMPERATURE=0 only if your model accepts it.
+    llm_temperature: float | None = None
     anthropic_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("ANTHROPIC_API_KEY", "ONCORAG_ANTHROPIC_API_KEY"),

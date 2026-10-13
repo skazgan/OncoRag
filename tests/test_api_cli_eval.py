@@ -196,3 +196,35 @@ def test_failed_pubmed_fetch_keeps_the_existing_index_and_leaks_no_key(tmp_path)
     assert "PubMed error" in out and "LLM provider key" in out
     assert leaked not in r.output and "Traceback" not in r.output
     assert (idx / "chunks.jsonl").read_text() == before  # index survived the failed rebuild
+
+
+def test_cli_ingest_uses_year_stratified_search_by_default(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    import oncorag.cli as cli_mod
+    from oncorag.ingestion import load_articles_jsonl
+
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def search_and_fetch(self, query, **kwargs):
+            captured.update(kwargs)
+            return load_articles_jsonl(DEMO_CORPUS)
+
+    monkeypatch.setattr(cli_mod, "PubMedClient", FakeClient)
+    runner = CliRunner()
+    idx = str(tmp_path / "i")
+    r = runner.invoke(cli_app, ["ingest", "--min-year", "2018", "--max-results", "50", "--index-dir", idx])
+    assert r.exit_code == 0, r.output
+    assert captured["by_year"] is True and captured["min_year"] == 2018
+    assert captured["max_year"] == datetime.now(timezone.utc).year
+    assert "By year:" in r.output and "2023: " in r.output  # transparency about the year spread
+
+    r = runner.invoke(cli_app, ["ingest", "--min-year", "2018", "--newest-first", "--index-dir", idx])
+    assert r.exit_code == 0 and captured["by_year"] is False
+
+    r = runner.invoke(cli_app, ["ingest", "--index-dir", idx])  # no --min-year: nothing to stratify
+    assert r.exit_code == 0 and captured["by_year"] is False and captured["max_year"] is None

@@ -75,3 +75,18 @@ def test_generator_sends_the_grounding_system_prompt():
     assert LLMGenerator(c).generate("Q?", ctx) == "Fact [1]."
     assert msgs.calls[0]["system"] == SYSTEM_PROMPT
     assert "Question: Q?" in msgs.calls[0]["messages"][0]["content"]
+
+
+def test_default_request_is_accepted_by_the_real_sdk_signature():
+    """Regression: the fake client above accepts anything, which hid that the real SDK's
+    Messages.create() rejects `temperature`. Bind our default kwargs to the genuine signature."""
+    import inspect
+
+    from oncorag.config import Settings
+
+    s = Settings(_env_file=None)
+    assert s.llm_temperature is None
+    c, msgs = _client(["ok"], max_tokens=s.llm_max_tokens, temperature=s.llm_temperature)
+    c.complete("sys", "user")
+    sig = inspect.signature(anthropic.resources.messages.Messages.create)
+    sig.bind(None, **msgs.calls[0])  # raises TypeError on any argument the SDK doesn't accept

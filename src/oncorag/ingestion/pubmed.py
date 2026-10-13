@@ -180,8 +180,18 @@ class PubMedClient:
         resp.raise_for_status()
         return resp
 
-    def search(self, query: str, *, max_results: int = 200, min_year: int | None = None) -> list[str]:
-        """Return PMIDs for a PubMed query, newest first."""
+    def search(
+        self,
+        query: str,
+        *,
+        max_results: int = 200,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        sort: str = "pub_date",
+    ) -> list[str]:
+        """Return PMIDs for a PubMed query. ``sort="pub_date"`` is newest first (so with a large
+        corpus and a small ``max_results`` you only ever see the latest months);
+        ``sort="relevance"`` is PubMed's Best Match."""
         pmids: list[str] = []
         page = 1000
         for start in range(0, max_results, page):
@@ -191,16 +201,38 @@ class PubMedClient:
                 retmode="json",
                 retstart=start,
                 retmax=min(page, max_results - start),
-                sort="pub_date",
             )
-            if min_year:
-                params.update(datetype="pdat", mindate=str(min_year), maxdate="3000")
+            if sort != "relevance":
+                params["sort"] = sort
+            if min_year or max_year:
+                params.update(datetype="pdat", mindate=str(min_year or 1800), maxdate=str(max_year or 3000))
             data = self._request("GET", "esearch.fcgi", params).json()["esearchresult"]
             ids = data.get("idlist", [])
             pmids.extend(ids)
             if len(ids) < min(page, max_results - start):
                 break
         return pmids[:max_results]
+
+    def search_by_year(
+        self, query: str, *, total: int, min_year: int, max_year: int, sort: str = "relevance"
+    ) -> list[str]:
+        """Spread ``total`` results evenly over ``min_year..max_year``.
+
+        A single newest-first query returns only the latest months, which makes a poor literature
+        corpus (no landmark papers, strong recency bias). One query per year, each capped at an
+        equal quota, gives a corpus that spans the whole period."""
+        if max_year < min_year:
+            raise ValueError("max_year must be >= min_year")
+        years = list(range(min_year, max_year + 1))
+        quota = -(-total // len(years))  # ceil
+        seen: set[str] = set()
+        pmids: list[str] = []
+        for year in years:
+            for pmid in self.search(query, max_results=quota, min_year=year, max_year=year, sort=sort):
+                if pmid not in seen:
+                    seen.add(pmid)
+                    pmids.append(pmid)
+        return pmids[:total]
 
     def fetch(self, pmids: list[str], *, batch_size: int = 200) -> Iterator[Article]:
         for i in range(0, len(pmids), batch_size):
@@ -210,9 +242,20 @@ class PubMedClient:
             yield from parse_pubmed_xml(resp.content)
 
     def search_and_fetch(
-        self, query: str, *, max_results: int = 200, min_year: int | None = None
+        self,
+        query: str,
+        *,
+        max_results: int = 200,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        by_year: bool = False,
     ) -> list[Article]:
-        pmids = self.search(query, max_results=max_results, min_year=min_year)
+        if by_year:
+            if not min_year or not max_year:
+                raise ValueError("by_year needs both min_year and max_year")
+            pmids = self.search_by_year(query, total=max_results, min_year=min_year, max_year=max_year)
+        else:
+            pmids = self.search(query, max_results=max_results, min_year=min_year, max_year=max_year)
         log.info("esearch returned %d PMIDs", len(pmids))
         return list(self.fetch(pmids))
 
