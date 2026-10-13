@@ -17,7 +17,7 @@ from rich.table import Table
 from oncorag.config import Settings
 from oncorag.ingestion import load_articles_jsonl
 from oncorag.ingestion.entities import get_extractor
-from oncorag.ingestion.pubmed import DEFAULT_QUERY, PubMedClient
+from oncorag.ingestion.pubmed import DEFAULT_QUERY, PubMedClient, PubMedError
 from oncorag.pipeline import RAGPipeline, RetrievalOptions
 from oncorag.retrieval.hybrid import RetrievalMode
 from oncorag.schemas import SearchFilters
@@ -63,17 +63,24 @@ def ingest(
 ) -> None:
     """Fetch articles (PubMed or JSONL), chunk, embed and index them."""
     settings = _settings(index_dir)
-    if rebuild and settings.index_dir.exists():
-        shutil.rmtree(settings.index_dir)
 
     if from_file:
         articles = load_articles_jsonl(from_file)
         console.print(f"Loaded {len(articles)} articles from {from_file}")
     else:
-        client = PubMedClient(settings.ncbi_email, settings.ncbi_api_key)
-        with console.status("Querying PubMed..."):
-            articles = client.search_and_fetch(query, max_results=max_results, min_year=min_year)
+        try:
+            client = PubMedClient(settings.ncbi_email, settings.ncbi_api_key)
+            with console.status("Querying PubMed..."):
+                articles = client.search_and_fetch(query, max_results=max_results, min_year=min_year)
+        except PubMedError as exc:
+            console.print(f"[red]PubMed error:[/red] {exc}")
+            raise typer.Exit(1) from None
         console.print(f"Fetched {len(articles)} articles with abstracts")
+
+    # Only discard the old index once new data is safely in hand; a failed download must not
+    # destroy a working index.
+    if rebuild and settings.index_dir.exists():
+        shutil.rmtree(settings.index_dir)
 
     pipeline = RAGPipeline.from_settings(settings)
     with console.status("Chunking, embedding and indexing..."):

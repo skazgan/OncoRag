@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from oncorag.ingestion.pubmed import PubMedClient, parse_pubmed_xml
+from oncorag.ingestion.pubmed import PubMedClient, PubMedError, parse_pubmed_xml
 
 from .conftest import FIXTURES
 
@@ -96,6 +96,49 @@ def test_client_errors_are_not_retried():
         attempts["n"] += 1
         return httpx.Response(400)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(PubMedError, match="HTTP 400"):
         _mock_client(handler).search("x", max_results=10)
     assert attempts["n"] == 1
+
+
+def test_errors_never_contain_the_url_or_credentials():
+    """Regression: the raw httpx error embeds the full request URL, including api_key."""
+    secret = "NCBI-SECRET-0123456789abcdef"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400)
+
+    client = PubMedClient(email="me@example.org", api_key=secret,
+                          client=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(PubMedError) as info:
+        client.search("x", max_results=10)
+    text = str(info.value)
+    assert secret not in text and "api_key" not in text and "eutils" not in text
+    assert "ONCORAG_NCBI_API_KEY" in text  # actionable hint for 400/401/403 with a key set
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+
+
+def test_network_failure_is_a_clean_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("boom", request=request)
+
+    with pytest.raises(PubMedError, match="Could not reach NCBI"):
+        _mock_client(handler).search("x", max_results=10)
+
+
+@pytest.mark.parametrize("bad", ["sk-ant-api03-abc", "sk-proj-abc", "sk-anything"])
+def test_llm_style_key_in_the_ncbi_slot_is_rejected_before_any_request(bad):
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200)
+
+    with pytest.raises(PubMedError, match="LLM provider key") as info:
+        PubMedClient(api_key=bad, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert bad not in str(info.value) and calls == []
+
+
+def test_empty_api_key_is_treated_as_unset():
+    c = PubMedClient(api_key="")
+    assert c.api_key is None and "api_key" not in c._params()

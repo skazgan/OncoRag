@@ -46,7 +46,7 @@ composes the answer from the same numbered sources, under the same verification.
 | **Abstention** on weak evidence, with a threshold-calibration command | `pipeline.py`, `evaluation/runner.py` |
 | **Evaluation harness**: ablation ladder, Recall/MRR/nDCG with bootstrap CIs, answer-level metrics, synthetic question generation | `evaluation/` |
 | Index integrity: embedder manifest, idempotent re-ingest, orphan cleanup, atomic writes | `index/manager.py` |
-| Service + tooling: FastAPI, Typer CLI, Docker, GitHub Actions, 94 tests | `api.py`, `cli.py`, `tests/` |
+| Service + tooling: FastAPI, Typer CLI, Docker, GitHub Actions, 101 tests | `api.py`, `cli.py`, `tests/` |
 
 ## Architecture
 
@@ -91,7 +91,7 @@ oncorag demo                                   # index the bundled synthetic cor
 oncorag ask "Which drugs inhibit KRAS G12C in lung cancer?"
 oncorag search "osimertinib resistance C797S"  # retrieval only: see dense/BM25 ranks
 oncorag eval                                   # ablation + answer-quality report -> reports/
-make test                                      # lint-clean, 94 tests
+make test                                      # lint-clean, 101 tests
 ```
 
 The offline defaults (hashing embedder, lexical reranker, extractive generator) are deterministic
@@ -183,7 +183,7 @@ src/oncorag/
   generation/  prompts.py · generator.py (LLM + extractive) · citations.py (verification)
   evaluation/  metrics.py · runner.py (ablation, calibration) · synthetic_qa.py · dataset.py
   pipeline.py  orchestration       api.py  FastAPI       cli.py  Typer CLI
-tests/         94 tests: parser fixtures, mocked HTTP, mocked LLM client, API, CLI, eval
+tests/         101 tests: parser fixtures, mocked HTTP, mocked LLM client, API, CLI, eval
 data/          sample/ (synthetic corpus) · eval/ (labelled demo questions)
 docs/          design-decisions.md
 ```

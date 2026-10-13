@@ -178,3 +178,21 @@ def test_cli_eval_generate_without_key_is_a_clean_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # no .env here
     r = CliRunner().invoke(cli_app, ["eval-generate", "--index-dir", str(tmp_path / "i")])
     assert r.exit_code != 0 and "ANTHROPIC_API_KEY" in r.output.replace("\n", " ")
+
+
+def test_failed_pubmed_fetch_keeps_the_existing_index_and_leaks_no_key(tmp_path):
+    """Regression: `ingest --rebuild` used to delete the index *before* downloading, and a
+    misplaced Anthropic key in the NCBI slot ended up in the traceback."""
+    runner = CliRunner()
+    idx = tmp_path / "idx"
+    assert runner.invoke(cli_app, ["demo", "--index-dir", str(idx)]).exit_code == 0
+    before = (idx / "chunks.jsonl").read_text()
+
+    leaked = "sk-ant-usr-TESTSECRET123"
+    r = runner.invoke(cli_app, ["ingest", "--rebuild", "--index-dir", str(idx)],
+                      env={"ONCORAG_NCBI_API_KEY": leaked})
+    out = r.output.replace("\n", " ")
+    assert r.exit_code == 1
+    assert "PubMed error" in out and "LLM provider key" in out
+    assert leaked not in r.output and "Traceback" not in r.output
+    assert (idx / "chunks.jsonl").read_text() == before  # index survived the failed rebuild

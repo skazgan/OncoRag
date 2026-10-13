@@ -101,6 +101,11 @@ def _is_retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.TransportError)
 
 
+class PubMedError(RuntimeError):
+    """An NCBI request failed. Messages are written to be safe to print and share: they never
+    contain the request URL, because NCBI credentials travel in the query string."""
+
+
 class PubMedClient:
     def __init__(
         self,
@@ -109,6 +114,15 @@ class PubMedClient:
         *,
         client: httpx.Client | None = None,
     ) -> None:
+        api_key = api_key or None  # treat "" as unset
+        if api_key and api_key.startswith("sk-"):
+            # Fail before any network call: NCBI keys are ~36 hex characters, whereas "sk-..."
+            # is the shape of an LLM-provider secret that must never be sent to NCBI.
+            raise PubMedError(
+                "ONCORAG_NCBI_API_KEY looks like an LLM provider key (it starts with 'sk-'), "
+                "not an NCBI key. Leave ONCORAG_NCBI_API_KEY empty unless you have a key from "
+                "your NCBI account settings, and put your Anthropic key on ANTHROPIC_API_KEY."
+            )
         self.email = email
         self.api_key = api_key
         self._min_interval = 1 / (10 if api_key else 3)
@@ -129,13 +143,33 @@ class PubMedClient:
             time.sleep(wait)
         self._last_call = time.monotonic()
 
+    def _request(self, method: str, endpoint: str, params: dict[str, object]) -> httpx.Response:
+        """Retrying request. Failures surface as ``PubMedError`` with a redacted message
+        (``from None`` also drops the chained httpx error, whose text contains the full URL)."""
+        try:
+            return self._request_with_retry(method, endpoint, params)
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            hint = ""
+            if status in (400, 401, 403) and self.api_key:
+                hint = " If you set ONCORAG_NCBI_API_KEY, check that it is a valid NCBI key, or leave it empty."
+            elif status == 429:
+                hint = " NCBI rate limit hit; set ONCORAG_NCBI_API_KEY to raise it."
+            raise PubMedError(f"NCBI {endpoint} returned HTTP {status}.{hint}") from None
+        except httpx.TransportError as exc:
+            raise PubMedError(
+                f"Could not reach NCBI ({type(exc).__name__}). Check your internet connection."
+            ) from None
+
     @retry(
         retry=retry_if_exception(_is_retryable),
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=1, max=20),
         reraise=True,
     )
-    def _request(self, method: str, endpoint: str, params: dict[str, object]) -> httpx.Response:
+    def _request_with_retry(
+        self, method: str, endpoint: str, params: dict[str, object]
+    ) -> httpx.Response:
         self._throttle()
         url = f"{EUTILS}/{endpoint}"
         resp = (
