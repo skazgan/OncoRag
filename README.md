@@ -1,5 +1,7 @@
 # OncoRAG
 
+[![CI](https://github.com/skazgan/OncoRag/actions/workflows/ci.yml/badge.svg)](https://github.com/skazgan/OncoRag/actions/workflows/ci.yml)
+
 **Evidence-grounded retrieval-augmented generation over cancer-genomics literature.**
 Ask a question about genes, variants, drugs and resistance; get a short answer where every claim
 carries a citation to a PubMed record, is *checked* against its source, and is **refused** when the
@@ -81,7 +83,7 @@ Design rationale, trade-offs, bugs found along the way and a scaling path are in
 ## Quick start (offline, no keys, no downloads)
 
 ```bash
-git clone <your-repo-url> oncorag && cd oncorag
+git clone https://github.com/skazgan/OncoRag.git && cd OncoRag
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,llm]"
 
@@ -170,8 +172,6 @@ oncorag eval-generate --n 100      # LLM-written questions from your own corpus 
 oncorag calibrate --dataset data/eval/synthetic_eval.jsonl
 oncorag eval --dataset data/eval/synthetic_eval.jsonl
 ```
-
-<!-- Paste your real-corpus results table here after running the commands above. -->
 
 ## Project structure
 
