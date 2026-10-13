@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from oncorag.config import Settings
+from oncorag.generation.generator import LLMError
 from oncorag.ingestion import load_articles_jsonl
 from oncorag.ingestion.entities import get_extractor
 from oncorag.ingestion.pubmed import DEFAULT_QUERY, PubMedClient, PubMedError
@@ -131,6 +132,8 @@ def _print_answer(ans) -> None:  # type: ignore[no-untyped-def]
     v = ans.verification
     if v:
         flags = []
+        if not v.sentence_support:
+            flags.append("no verifiable claims")
         if v.invalid_markers:
             flags.append(f"invalid markers {v.invalid_markers}")
         if v.uncited_sentences:
@@ -161,12 +164,17 @@ def ask(
     pipeline = RAGPipeline.from_settings(_settings(index_dir))
     if not pipeline.index.chunks:
         raise typer.BadParameter("Index is empty. Run `oncorag demo` or `oncorag ingest` first.")
-    ans = pipeline.ask(
-        question,
-        filters=_filters(gene, cancer, year_min),
-        options=RetrievalOptions(mode=mode, rerank=not no_rerank, top_k=top_k),
-    )
-    pipeline.close()
+    try:
+        ans = pipeline.ask(
+            question,
+            filters=_filters(gene, cancer, year_min),
+            options=RetrievalOptions(mode=mode, rerank=not no_rerank, top_k=top_k),
+        )
+    except LLMError as exc:
+        console.print(f"[red]LLM error:[/red] {exc}")
+        raise typer.Exit(1) from None
+    finally:
+        pipeline.close()
     if as_json:
         console.print_json(ans.model_dump_json())
     else:
@@ -218,12 +226,21 @@ def eval_generate(
 
     settings = _settings(index_dir)
     try:
-        client = AnthropicClient(settings.anthropic_api_key, settings.llm_model, 400, settings.llm_temperature)
+        client = AnthropicClient(
+            settings.anthropic_api_key,
+            settings.llm_model,
+            settings.llm_max_tokens,
+            settings.llm_temperature,
+            effort=settings.llm_effort,
+        )
     except RuntimeError as exc:  # missing key / missing extra: show the fix, not a traceback
         raise typer.BadParameter(str(exc)) from exc
     pipeline = RAGPipeline.from_settings(settings)
     try:
         examples = generate_eval_set(list(pipeline.index.chunks.values()), client, n=n)
+    except (LLMError, RuntimeError) as exc:
+        console.print(f"[red]Could not generate questions:[/red] {exc}")
+        raise typer.Exit(1) from None
     finally:
         pipeline.close()
     save_eval_set(examples, out)

@@ -19,6 +19,10 @@ from oncorag.schemas import RetrievedChunk
 from oncorag.text import content_terms, split_sentences
 
 
+class LLMError(RuntimeError):
+    """The LLM call completed but did not yield a usable answer (or could not be made)."""
+
+
 class Generator(Protocol):
     name: str
 
@@ -29,14 +33,33 @@ class ChatClient(Protocol):
     def complete(self, system: str, user: str) -> str: ...
 
 
+def _empty_response_message(msg: object, max_tokens: int) -> str:
+    """Explain *why* a response had no text, without ever echoing request content or keys."""
+    stop = getattr(msg, "stop_reason", None)
+    kinds = [getattr(b, "type", "?") for b in (getattr(msg, "content", None) or [])]
+    out_tokens = getattr(getattr(msg, "usage", None), "output_tokens", None)
+    detail = f"stop_reason={stop}, content blocks={kinds or 'none'}, output_tokens={out_tokens}"
+    if stop == "max_tokens":
+        hint = (
+            f"The {max_tokens}-token limit was used up before any answer text was written (thinking "
+            "tokens count toward it). Raise ONCORAG_LLM_MAX_TOKENS or lower ONCORAG_LLM_EFFORT."
+        )
+    elif stop == "refusal":
+        hint = "The model declined to answer this request."
+    else:
+        hint = "The model returned no text."
+    return f"{hint} ({detail})"
+
+
 class AnthropicClient:
     def __init__(
         self,
         api_key: str | None,
         model: str,
-        max_tokens: int = 700,
-        temperature: float | None = 0.0,
+        max_tokens: int = 4096,
+        temperature: float | None = None,
         *,
+        effort: str | None = None,
         client: object | None = None,
     ) -> None:
         try:
@@ -51,7 +74,7 @@ class AnthropicClient:
         self._anthropic = anthropic
         # `client` is injectable so the request/retry logic is unit-testable without network.
         self._client = client or anthropic.Anthropic(api_key=api_key)
-        self.model, self.max_tokens, self.temperature = model, max_tokens, temperature
+        self.model, self.max_tokens, self.temperature, self.effort = model, max_tokens, temperature, effort
 
     def complete(self, system: str, user: str) -> str:
         @retry(
@@ -75,8 +98,13 @@ class AnthropicClient:
             }
             if self.temperature is not None:
                 kwargs["temperature"] = self.temperature
+            if self.effort:
+                kwargs["output_config"] = {"effort": self.effort}
             msg = self._client.messages.create(**kwargs)  # type: ignore[arg-type]
-            return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            if not text.strip():
+                raise LLMError(_empty_response_message(msg, self.max_tokens))
+            return text
 
         return _call().strip()
 
@@ -87,7 +115,10 @@ class LLMGenerator:
         self.name = name
 
     def generate(self, question: str, contexts: list[RetrievedChunk]) -> str:
-        return self.client.complete(SYSTEM_PROMPT, build_user_prompt(question, contexts))
+        text = self.client.complete(SYSTEM_PROMPT, build_user_prompt(question, contexts))
+        if not text or not text.strip():
+            raise LLMError("The model returned an empty answer.")
+        return text
 
 
 class ExtractiveGenerator:
@@ -134,6 +165,7 @@ def get_generator(settings: Settings) -> Generator:
             settings.llm_model,
             settings.llm_max_tokens,
             settings.llm_temperature,
+            effort=settings.llm_effort,
         )
         return LLMGenerator(client, name=f"anthropic:{settings.llm_model}")
     return ExtractiveGenerator()

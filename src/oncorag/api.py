@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from oncorag import __version__
 from oncorag.config import Settings
+from oncorag.generation.generator import LLMError
 from oncorag.pipeline import RAGPipeline, RetrievalOptions
 from oncorag.retrieval.hybrid import RetrievalMode
 from oncorag.schemas import Answer, RetrievedChunk, SearchFilters
@@ -75,11 +76,14 @@ def create_app(pipeline: RAGPipeline | None = None, settings: Settings | None = 
                 status_code=503,
                 detail="The index is empty. Run `oncorag ingest` or `oncorag demo` first.",
             )
-        return pipe.ask(
-            req.question,
-            filters=req.filters,
-            options=RetrievalOptions(mode=req.mode, rerank=req.rerank, top_k=req.top_k),
-        )
+        try:
+            return pipe.ask(
+                req.question,
+                filters=req.filters,
+                options=RetrievalOptions(mode=req.mode, rerank=req.rerank, top_k=req.top_k),
+            )
+        except LLMError as exc:
+            raise HTTPException(status_code=502, detail=f"LLM error: {exc}") from None
 
     return app
 

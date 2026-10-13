@@ -7,7 +7,7 @@ import pytest
 
 anthropic = pytest.importorskip("anthropic")
 
-from oncorag.generation.generator import AnthropicClient, LLMGenerator  # noqa: E402
+from oncorag.generation.generator import AnthropicClient, LLMError, LLMGenerator  # noqa: E402
 from oncorag.generation.prompts import SYSTEM_PROMPT  # noqa: E402
 from oncorag.schemas import Chunk, RetrievedChunk  # noqa: E402
 
@@ -90,3 +90,74 @@ def test_default_request_is_accepted_by_the_real_sdk_signature():
     c.complete("sys", "user")
     sig = inspect.signature(anthropic.resources.messages.Messages.create)
     sig.bind(None, **msgs.calls[0])  # raises TypeError on any argument the SDK doesn't accept
+
+
+class _Block:
+    def __init__(self, type, text=None):
+        self.type, self.text = type, text
+
+
+def _msg(blocks, stop_reason, output_tokens=700):
+    return SimpleNamespace(content=blocks, stop_reason=stop_reason, usage=SimpleNamespace(output_tokens=output_tokens))
+
+
+class _Msgs:
+    def __init__(self, reply):
+        self.reply, self.calls = reply, []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.reply
+
+
+def test_thinking_only_response_raises_an_actionable_error_and_is_not_retried():
+    """Regression: with a small max_tokens the model spent everything on thinking, returned no
+    text block, and the CLI printed an empty answer panel with 'support rate 0% clean'."""
+    msgs = _Msgs(_msg([_Block("thinking")], "max_tokens"))
+    c = AnthropicClient("k", "m", max_tokens=700, client=SimpleNamespace(messages=msgs))
+    with pytest.raises(LLMError) as info:
+        c.complete("s", "u")
+    text = str(info.value)
+    assert "stop_reason=max_tokens" in text and "thinking" in text and "700" in text
+    assert "ONCORAG_LLM_MAX_TOKENS" in text and "ONCORAG_LLM_EFFORT" in text
+    assert len(msgs.calls) == 1  # a deterministic failure must not be retried
+
+
+def test_refusal_and_blank_text_are_reported_distinctly():
+    refusal = AnthropicClient("k", "m", client=SimpleNamespace(messages=_Msgs(_msg([], "refusal"))))
+    with pytest.raises(LLMError, match="declined"):
+        refusal.complete("s", "u")
+    blank = AnthropicClient("k", "m", client=SimpleNamespace(messages=_Msgs(_msg([_Block("text", "  \n")], "end_turn"))))
+    with pytest.raises(LLMError, match="returned no text"):
+        blank.complete("s", "u")
+
+
+def test_effort_is_sent_as_output_config_only_when_set_and_sdk_accepts_it():
+    import inspect
+
+    c, msgs = _client(["ok"], effort="low")
+    c.complete("s", "u")
+    assert msgs.calls[0]["output_config"] == {"effort": "low"}
+    sig = inspect.signature(anthropic.resources.messages.Messages.create)
+    sig.bind(None, **msgs.calls[0])
+
+    c2, msgs2 = _client(["ok"])
+    c2.complete("s", "u")
+    assert "output_config" not in msgs2.calls[0]
+
+
+def test_generator_rejects_blank_client_output():
+    class Blank:
+        def complete(self, system, user):
+            return "   "
+
+    ctx = [RetrievedChunk(chunk=Chunk(chunk_id="1:0", pmid="1", title="T", text="Body."), score=1.0)]
+    with pytest.raises(LLMError, match="empty answer"):
+        LLMGenerator(Blank()).generate("Q?", ctx)
+
+
+def test_new_defaults_leave_headroom_for_thinking():
+    from oncorag.config import Settings
+
+    s = Settings(_env_file=None)
+    assert s.llm_max_tokens >= 4096 and s.llm_effort is None

@@ -31,6 +31,7 @@ from oncorag.evaluation.metrics import (
     recall_at_k,
     reciprocal_rank,
 )
+from oncorag.generation.generator import LLMError
 from oncorag.pipeline import RAGPipeline, RetrievalOptions
 from oncorag.retrieval.hybrid import RetrievalMode
 
@@ -99,7 +100,13 @@ def evaluate_answers(pipeline: RAGPipeline, examples: list[EvalExample]) -> dict
     failures: list[dict[str, object]] = []
 
     for ex in examples:
-        ans = pipeline.ask(ex.question)
+        try:
+            ans = pipeline.ask(ex.question)
+        except LLMError as exc:
+            failures.append({"id": ex.id, "type": "generation_error", "error": str(exc)})
+            if ex.answerable:
+                answered_answerable.append(0.0)
+            continue
         if not ex.answerable:
             abstained_unanswerable.append(1.0 if ans.abstained else 0.0)
             if not ans.abstained:

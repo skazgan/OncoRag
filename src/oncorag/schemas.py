@@ -97,7 +97,8 @@ class VerificationReport(BaseModel):
     @property
     def is_clean(self) -> bool:
         return (
-            not self.invalid_markers
+            bool(self.sentence_support)  # nothing verifiable (e.g. an empty answer) is not "clean"
+            and not self.invalid_markers
             and not self.uncited_sentences
             and all(s.supported for s in self.sentence_support)
         )

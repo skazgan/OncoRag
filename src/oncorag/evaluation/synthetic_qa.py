@@ -51,12 +51,19 @@ def generate_eval_set(
     rng.shuffle(pmids)
 
     examples: list[EvalExample] = []
+    unparsable = 0
     for pmid in pmids:
         if len(examples) >= n:
             break
         chunk = rng.choice(by_pmid[pmid])
         data = _parse(client.complete(_SYSTEM, f"Title: {chunk.title}\nPassage: {chunk.text}"))
         if not data:
+            unparsable += 1
+            if unparsable >= 10 and not examples:  # fail fast instead of burning API calls
+                raise RuntimeError(
+                    "The first 10 model replies contained no valid question JSON; stopping. "
+                    "Check ONCORAG_LLM_MODEL / ONCORAG_LLM_MAX_TOKENS."
+                )
             continue
         kws = data.get("keywords") or []
         examples.append(

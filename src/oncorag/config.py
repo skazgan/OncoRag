@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     # Generation
     llm_backend: Literal["extractive", "anthropic"] = "extractive"
     llm_model: str = "claude-sonnet-5-5"
-    llm_max_tokens: int = 700
+    # max_tokens caps thinking + answer *combined* on current models, so keep generous headroom:
+    # a small cap can be consumed entirely by thinking, leaving an empty answer.
+    llm_max_tokens: int = 4096
+    # Optional thinking effort (sent as output_config.effort), e.g. "low" for faster/cheaper QA.
+    llm_effort: str | None = None
     # Omitted by default: some current models/SDK versions reject `temperature` outright.
     # Set ONCORAG_LLM_TEMPERATURE=0 only if your model accepts it.
     llm_temperature: float | None = None

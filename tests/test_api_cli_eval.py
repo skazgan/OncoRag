@@ -113,7 +113,8 @@ def test_synthetic_eval_generation_with_fake_llm(pipeline):
         def complete(self, system, user):
             return "not json"
 
-    assert generate_eval_set(list(pipeline.index.chunks.values()), Broken(), n=3) == []
+    with pytest.raises(RuntimeError, match="first 10 model replies"):
+        generate_eval_set(list(pipeline.index.chunks.values()), Broken(), n=3)
 
 
 def test_eval_example_roundtrip():
@@ -228,3 +229,72 @@ def test_cli_ingest_uses_year_stratified_search_by_default(tmp_path, monkeypatch
 
     r = runner.invoke(cli_app, ["ingest", "--index-dir", idx])  # no --min-year: nothing to stratify
     assert r.exit_code == 0 and captured["by_year"] is False and captured["max_year"] is None
+
+
+
+# ---- empty / failed LLM output (regression: blank answer shown as "support rate 0% clean") ----------
+class _BlankClient:
+    def complete(self, system, user):
+        return ""
+
+
+def _failing_pipeline(demo_articles):
+    from oncorag.generation.generator import LLMGenerator
+
+    pipe = RAGPipeline.from_settings(Settings(_env_file=None), persist=False, generator=LLMGenerator(_BlankClient()))
+    pipe.add_articles(demo_articles)
+    return pipe
+
+
+def test_empty_answer_is_never_reported_as_clean():
+    from oncorag.generation.citations import verify_answer
+
+    rep = verify_answer("", [])
+    assert rep.sentence_support == [] and rep.is_clean is False
+
+
+def test_api_returns_502_when_the_llm_gives_no_answer(demo_articles):
+    with TestClient(create_app(pipeline=_failing_pipeline(demo_articles))) as c:
+        r = c.post("/ask", json={"question": "Which drugs inhibit KRAS G12C in lung cancer?"})
+    assert r.status_code == 502 and "LLM error" in r.json()["detail"]
+
+
+def test_cli_ask_shows_a_clean_error_when_the_llm_gives_no_answer(demo_articles, monkeypatch):
+    import oncorag.cli as cli_mod
+
+    pipe = _failing_pipeline(demo_articles)
+    monkeypatch.setattr(cli_mod.RAGPipeline, "from_settings", classmethod(lambda cls, *a, **k: pipe))
+    r = CliRunner().invoke(cli_app, ["ask", "Which drugs inhibit KRAS G12C in lung cancer?"])
+    assert r.exit_code == 1
+    assert "LLM error" in r.output and "empty answer" in r.output.replace("\n", " ")
+    assert "Traceback" not in r.output
+
+
+def test_eval_records_generation_errors_and_keeps_going(demo_articles):
+    from oncorag.evaluation.runner import evaluate_answers
+
+    exs = [e for e in load_eval_set(DEMO_EVAL) if e.answerable][:3]
+    res = evaluate_answers(_failing_pipeline(demo_articles), exs)
+    assert [f["type"] for f in res["failures"]] == ["generation_error"] * 3
+    assert res["answer_rate"] == 0.0
+
+
+def test_eval_generate_reports_llm_failure_and_writes_nothing(tmp_path, monkeypatch):
+    import oncorag.generation.generator as gen_mod
+    from oncorag.generation.generator import LLMError
+
+    class Boom:
+        def __init__(self, *a, **k):
+            pass
+
+        def complete(self, system, user):
+            raise LLMError("The 400-token limit was used up")
+
+    monkeypatch.setattr(gen_mod, "AnthropicClient", Boom)
+    runner = CliRunner()
+    idx = str(tmp_path / "i")
+    assert runner.invoke(cli_app, ["demo", "--index-dir", idx]).exit_code == 0
+    out = tmp_path / "q.jsonl"
+    r = runner.invoke(cli_app, ["eval-generate", "--index-dir", idx, "--out", str(out), "--n", "3"])
+    assert r.exit_code == 1 and "Could not generate questions" in r.output and "Traceback" not in r.output
+    assert not out.exists()
